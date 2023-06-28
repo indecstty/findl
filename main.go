@@ -13,6 +13,8 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/crypto/ssh/terminal"
@@ -34,7 +36,7 @@ func main() {
 	fmt.Print("Salasana: ")
 	pwBytes, _ := terminal.ReadPassword(0)
 	password = string(pwBytes)
-	fmt.Println("\nAuthenticating against", urlString)
+	fmt.Println("\nTunnistaudutaan osoitteeseen", urlString)
 
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -46,7 +48,7 @@ func main() {
 			if len(via) > 0 && via[0].URL.String() == urlString {
 				return nil
 			}
-			return errors.New("authentication failed")
+			return errors.New("\nTunnistautuminen epäonnistui. Tarkista käyttäjätunnus ja salasana.")
 		},
 		Jar: jar,
 	}
@@ -77,7 +79,7 @@ func main() {
 		id := claim[0]
 		receipts := strings.Split(claim[1], ";")
 
-		fmt.Printf("Claim %s ", id)
+		fmt.Printf("Claim %s\n", id)
 
 		f := startHTML(claim[2])
 
@@ -99,6 +101,36 @@ func main() {
 				continue
 			}
 			fmt.Printf("> Receipt %s\n", receipt)
+
+			// Check if the receipt is a PDF
+			isPDF := strings.HasSuffix(receipt, ".pdf")
+			// Check if the receipt is a PNG
+			isPNG := strings.HasSuffix(receipt, ".png")
+			// Check if the receipt is a JPEG (JPG)
+			isJPEG := strings.HasSuffix(receipt, ".jpg") || strings.HasSuffix(receipt, ".jpeg")
+
+			// Skip conversion for PNG and JPEG files
+			if isPNG || isJPEG {
+				fmt.Println("Skipping conversion for PNG and JPEG files")
+				// Save the receipt file with the appropriate extension
+				receiptFilePath := filepath.Join("output", receipt)
+				receiptFile, err := os.Create(receiptFilePath)
+				if err != nil {
+					log.Fatal(err)
+				}
+				res, err := client.Get(baseURL + "/files/receipts/" + receipt)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Printf("GET %s: %s\n", res.Request.URL, res.Status)
+				io.Copy(receiptFile, res.Body)
+				receiptFile.Close()
+				// Add the receipt to the HTML document
+				f.WriteString(fmt.Sprintf(`<img style="max-height: 1000px; max-width: 200mm; margin-bottom: 20px;" src="%s" />`, receipt))
+				continue
+			}
+
+			// Download the receipt file
 			res, err = client.Get(baseURL + "/files/receipts/" + receipt)
 			if err != nil {
 				log.Fatal(err)
@@ -106,16 +138,38 @@ func main() {
 
 			fmt.Printf("GET %s: %s\n", res.Request.URL, res.Status)
 
-			img, err := os.Create("output/" + receipt)
+			// Save the receipt file with the appropriate extension
+			receiptFilePath := filepath.Join("output", receipt)
+			receiptFile, err := os.Create(receiptFilePath)
 			if err != nil {
 				log.Fatal(err)
 			}
-			io.Copy(img, res.Body)
-			img.Close()
+			io.Copy(receiptFile, res.Body)
+			receiptFile.Close()
 
-			receipt = url.PathEscape(receipt)
+			// Convert PDF receipt to images if it's a PDF
+			if isPDF {
+				imgFilePaths, err := convertPDFToImages(receiptFilePath)
+				if err != nil {
+					log.Fatal(err)
+				}
 
-			f.WriteString(fmt.Sprintf(`<img style="max-height: 1000px; max-width: 200mm; margin-bottom: 20px;" src="%s" />`, receipt))
+				// Delete the original PDF receipt
+				os.Remove(receiptFilePath)
+
+				// Add each page of the PDF receipt to the HTML document
+				for _, imgFilePath := range imgFilePaths {
+					// Get the filename with the correct extension
+					filename := filepath.Base(imgFilePath)
+					// Add the receipt image to the HTML document
+					f.WriteString(fmt.Sprintf(`<img style="max-height: 1000px; max-width: 200mm; margin-bottom: 20px;" src="%s" />`, filename))
+				}
+			} else {
+				// Get the filename with the correct extension
+				filename := filepath.Base(receiptFilePath)
+				// Add the receipt image to the HTML document
+				f.WriteString(fmt.Sprintf(`<img style="max-height: 1000px; max-width: 200mm; margin-bottom: 20px;" src="%s" />`, filename))
+			}
 		}
 
 		f.WriteString("</body></html>")
@@ -124,7 +178,7 @@ func main() {
 }
 
 func startHTML(filename string) *os.File {
-	f, err := os.Create(fmt.Sprintf("output/%s.html", filename))
+	f, err := os.Create(filepath.Join("output", fmt.Sprintf("%s.html", filename)))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -136,68 +190,68 @@ func startHTML(filename string) *os.File {
 			<style>
 				body {
 					max-width: 200mm;
+					padding: 10px;
 				}
-				td{
-					border:1px solid black;
-					border-left:none;
-					border-right:none;
-					padding:0;
+				td {
+					border: 1px solid black;
+					border-left: none;
+					border-right: none;
+					padding: 0;
 				}
-				tr{
-					padding:0;
+				tr {
+					padding: 0;
 				}
-				table{
-					padding:0;
+				table {
+					padding: 0;
 					border-collapse: collapse;
-					width:100%;
-					font-size:1.1em;
+					width: 100%;
 				}
-				img{
-					max-height:100px;
-					padding:10px;
-				}
-				.legend{
-					border-bottom:none;
-					font-size:0.8em;
-				}
-				.content{
-					border-top:none;
-					padding-left:0.7em;
-				}
-				.signature{
-					height:10mm;
-					min-width:75mm;
-				}
-				.note-area{
-					border-bottom:none;
-				}
-				.total-cell{
-					border-top:2px solid black;
-					font-weight:bold;
-					line-height:2em;
-				}
-				.divider td{
-					line-height:2em;
-					font-size:0.8em;
-					border-bottom:0;
-				}
-				.gutter{
-					width:10mm;
-					border:none;
-				}
-				.first-row td{
-					border-top:0;
-				}
-				.first-row img {
-					display: none;
-				}
-				.no-border{
-					border:0;
+				img {
+					max-height: 1000px;
+					max-width: 200mm;
+					margin-bottom: 20px;
 				}
 			</style>
 		</head>
-		<body>	
-	`)
+		<body>`)
 
 	return f
+}
+
+func convertPDFToImages(pdfFilePath string) ([]string, error) {
+	outputDir := "output"
+
+	// Create the output directory if it doesn't exist
+	err := os.MkdirAll(outputDir, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the PDF to images using ImageMagick's `convert` command
+	outputPrefix := strings.TrimSuffix(filepath.Base(pdfFilePath), filepath.Ext(pdfFilePath))
+	outputFilePath := filepath.Join(outputDir, outputPrefix+"-%d.png")
+	cmd := exec.Command("convert", "-density", "200", "-quality", "200", pdfFilePath, outputFilePath)
+	err = cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			log.Println("convert command failed with exit status:", exitErr.ExitCode())
+			log.Println("Error message:", string(exitErr.Stderr))
+		}
+		return nil, err
+	}
+
+	// Get the list of image files in the output directory
+	files, err := ioutil.ReadDir(outputDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var imagePaths []string
+	for _, file := range files {
+		if !file.IsDir() && strings.HasPrefix(file.Name(), outputPrefix) {
+			imagePaths = append(imagePaths, filepath.Join(outputDir, file.Name()))
+		}
+	}
+
+	return imagePaths, nil
 }
