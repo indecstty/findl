@@ -26,7 +26,7 @@ func main() {
 	flag.StringVar(&filename, "file", "db.csv", "Tietokannan csv-export")
 	flag.Parse()
 
-	baseURL := "https://indecs.fi/findecs2023" + year
+	baseURL := "https://indecs.fi/findecs" + year
 	urlString := baseURL + "/users/login"
 
 	reader := bufio.NewReader(os.Stdin)
