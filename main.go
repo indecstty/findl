@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 	flag.StringVar(&filename, "file", "db.csv", "Tietokannan csv-export")
 	flag.Parse()
 
-	baseURL := "https://indecs.fi/findecs" + year
+	baseURL := "https://indecs.fi/findecs2023" + year
 	urlString := baseURL + "/users/login"
 
 	reader := bufio.NewReader(os.Stdin)
@@ -34,7 +34,7 @@ func main() {
 	email, _ = reader.ReadString('\n')
 	email = strings.TrimSpace(email)
 	fmt.Print("Salasana: ")
-	pwBytes, _ := terminal.ReadPassword(0)
+	pwBytes, _ := term.ReadPassword(0)
 	password = string(pwBytes)
 	fmt.Println("\nTunnistaudutaan osoitteeseen", urlString)
 
@@ -187,34 +187,67 @@ func startHTML(filename string) *os.File {
 		<html>
 		<head>
 			<meta http-equiv='content-type' content='text/html; charset=utf-8'>
+
 			<style>
-				body {
-					max-width: 200mm;
-					padding: 10px;
-				}
-				td {
-					border: 1px solid black;
-					border-left: none;
-					border-right: none;
-					padding: 0;
-				}
-				tr {
-					padding: 0;
-				}
-				table {
-					padding: 0;
-					border-collapse: collapse;
-					width: 100%;
-				}
-				img {
-					max-height: 1000px;
-					max-width: 200mm;
-					margin-bottom: 20px;
-				}
+			body {
+				max-width: 200mm;
+				padding: 10px;
+				font-family: Arial, sans-serif; /* Use a common font for better compatibility */
+			}
+	
+			table {
+				border-collapse: collapse;
+				width: 100%;
+				margin-top: 10px; /* Add some spacing between the table and other elements */
+			}
+	
+			th, td {
+				border: 1px solid black;
+				padding: 8px; /* Add padding for better spacing */
+				text-align: left; /* Align text to the left for readability */
+			}
+	
+			th {
+				background-color: #f2f2f2; /* Use a light background color for header cells */
+			}
+	
+			img {
+				max-height: 1000px;
+				max-width: 100%; /* Ensure images don't exceed their container's width */
+				margin-bottom: 20px;
+			}
+	
+			.content {
+				font-size: 1.1em;
+			}
+	
+			.total-cell {
+				font-weight: bold;
+			}
+	
+			.signature img {
+				max-height: 80px;
+				max-width: 100%; /* Ensure the signature image fits within its container */
+			}
+	
+			.gutter {
+				width: 10px; /* Add a small gutter between cells */
+			}
+	
+			.first-row img {
+				display: block; /* Display the logo in the first row */
+				max-width: 50px;
+				max-height: 50px;
+			}
+	
+			.no-border {
+				border: 0;
+			}
+			
 			</style>
 		</head>
-		<body>`)
-
+		<body>	
+	`)
 	return f
 }
 
@@ -230,11 +263,11 @@ func convertPDFToImages(pdfFilePath string) ([]string, error) {
 	// Convert the PDF to images using ImageMagick's `convert` command
 	outputPrefix := strings.TrimSuffix(filepath.Base(pdfFilePath), filepath.Ext(pdfFilePath))
 	outputFilePath := filepath.Join(outputDir, outputPrefix+"-%d.png")
-	cmd := exec.Command("convert", "-density", "200", "-quality", "200", pdfFilePath, outputFilePath)
+	cmd := exec.Command("magick", "-density", "200", "-quality", "200", pdfFilePath, outputFilePath)
 	err = cmd.Run()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			log.Println("convert command failed with exit status:", exitErr.ExitCode())
+			log.Println("magick command failed with exit status:", exitErr.ExitCode())
 			log.Println("Error message:", string(exitErr.Stderr))
 		}
 		return nil, err
