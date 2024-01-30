@@ -64,11 +64,20 @@ func main() {
 	fmt.Println(res.Status)
 
 	fmt.Printf("Reading DB file %s...\n", filename)
+
+	// Check if the CSV file exists
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		fmt.Printf("Error: CSV file %s not found.\n", filename)
+		fmt.Println("Please make sure the file exists in the same directory.")
+		fmt.Println("You should generate the 'db.csv' file by running the provided 'aggregate.sql' script in a database tool like DataGrip.")
+		return
+	}
+	
 	fd, err := os.Open(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	
 	cr := csv.NewReader(fd)
 	claims, err := cr.ReadAll()
 	if err != nil {
@@ -258,6 +267,12 @@ func convertPDFToImages(pdfFilePath string) ([]string, error) {
 	err := os.MkdirAll(outputDir, os.ModePerm)
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if the 'magick' command is available
+	magickPath, err := exec.LookPath("magick")
+	if err != nil {
+		log.Fatal("Error: 'magick' command not found. Please install ImageMagick (sudo apt install imagemagick) and ensure it is in your system's $PATH.")
 	}
 
 	// Convert the PDF to images using ImageMagick's `convert` command
