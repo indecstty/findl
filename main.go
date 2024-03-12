@@ -268,12 +268,6 @@ func convertPDFToImages(pdfFilePath string) ([]string, error) {
 		return nil, err
 	}
 
-	// Check if the 'magick' command is available
-	magickPath, err := exec.LookPath("magick")
-	if err != nil {
-		log.Fatal("Error: 'magick' command not found. Please install ImageMagick (sudo apt install imagemagick) and ensure it is in your system's $PATH.")
-	}
-
 	// Convert the PDF to images using ImageMagick's `convert` command
 	outputPrefix := strings.TrimSuffix(filepath.Base(pdfFilePath), filepath.Ext(pdfFilePath))
 	outputFilePath := filepath.Join(outputDir, outputPrefix+"-%d.png")

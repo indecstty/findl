@@ -22,3 +22,7 @@ for file in output/*.html; do
         echo "Error: wkhtmltopdf command failed for $file"
     fi
 done
+
+# Zip the contents of the "pdfs" directory
+echo "Zipping the PDF files"
+zip -r kukot_$(date '+%d%m%Y').zip -j pdfs/*
